@@ -1,0 +1,50 @@
+   name: CI/CD - Test and Deploy to Elastic Beanstalk
+
+   on:
+     push:
+       branches: [main]
+     pull_request:
+       branches: [main]
+
+   jobs:
+     test:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+
+         - uses: actions/setup-python@v5
+           with:
+             python-version: "3.12"
+             cache: pip
+
+         - name: Install dependencies
+           run: pip install -r requirements-dev.txt
+
+         - name: Run tests
+           run: python -m pytest -q
+
+         - name: Build Docker image
+           run: docker build -t incident-platform:${{ github.sha }} .
+
+     deploy:
+       needs: test
+       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+
+         - name: Create deployment package
+           run: |
+             zip -r deploy.zip . -x '.git/*' '.github/*' 'tests/*' '__pycache__/*' '*.pyc' 'instance/*'
+
+         - name: Deploy to Elastic Beanstalk
+           uses: einaregilsson/beanstalk-deploy@v22
+           with:
+             aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+             aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+             application_name: ${{ vars.EB_APP_NAME }}
+             environment_name: ${{ vars.EB_ENV_NAME }}
+             region: ${{ vars.AWS_REGION }}
+             version_label: v${{ github.run_number }}-${{ github.sha }}
+             deployment_package: deploy.zip
+             wait_for_environment_recovery: 180
