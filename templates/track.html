@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Track a request{% endblock %}
+{% block content %}
+<form class="card form narrow" method="post">
+  <h2>Track your request</h2>
+  <p class="muted">Enter the ticket number you received and the email you used.</p>
+  <label>Ticket number
+    <input name="ticket" required placeholder="INC-00001">
+  </label>
+  <label>Email
+    <input name="email" type="email" required>
+  </label>
+  <button class="btn" type="submit">Find request</button>
+</form>
+{% endblock %}

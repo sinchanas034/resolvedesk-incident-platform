@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Support dashboard</h1>
+
+<div class="stats">
+  <div class="stat"><span>{{ stats.total }}</span>Total requests</div>
+  <div class="stat"><span>{{ stats.by_status['Open'] }}</span>Open</div>
+  <div class="stat"><span>{{ stats.by_status['In Progress'] }}</span>In progress</div>
+  <div class="stat"><span>{{ stats.by_status['Resolved'] + stats.by_status['Closed'] }}</span>Resolved / closed</div>
+  <div class="stat"><span>{{ stats.avg_resolution_hours if stats.avg_resolution_hours is not none else '–' }}</span>Avg hours to resolve</div>
+</div>
+
+<div class="card prio-strip">
+  <strong>Active by priority:</strong>
+  {% for p, n in stats.open_by_priority.items()|reverse %}
+    <span class="badge prio-{{ p|lower }}">{{ p }}: {{ n }}</span>
+  {% endfor %}
+</div>
+
+<form class="filters" method="get">
+  <input name="q" value="{{ filters.q }}" placeholder="Search titles">
+  <select name="status">
+    <option value="">All statuses</option>
+    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active (open + in progress)</option>
+    {% for s in statuses %}<option {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="priority">
+    <option value="">All priorities</option>
+    {% for p in priorities %}<option {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-secondary" type="submit">Filter</button>
+</form>
+
+<div class="card table-wrap">
+  <table>
+    <thead><tr><th>Ticket</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Assignee</th><th>Created</th></tr></thead>
+    <tbody>
+      {% for i in page.items %}
+      <tr>
+        <td><a href="{{ url_for('main.ticket', incident_id=i.id) }}">{{ i.ref }}</a></td>
+        <td>{{ i.title }}</td>
+        <td>{{ i.category }}</td>
+        <td><span class="badge prio-{{ i.priority|lower }}">{{ i.priority }}</span></td>
+        <td><span class="badge status-{{ i.status|lower|replace(' ', '-') }}">{{ i.status }}</span></td>
+        <td>{{ i.assignee or '-' }}</td>
+        <td class="muted">{{ i.created_at|dt }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted center">No requests match these filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page.pages > 1 %}
+<div class="pager">
+  {% if page.has_prev %}<a href="{{ url_for('main.admin', page=page.prev_num, **filters) }}">← Prev</a>{% endif %}
+  <span>Page {{ page.page }} of {{ page.pages }}</span>
+  {% if page.has_next %}<a href="{{ url_for('main.admin', page=page.next_num, **filters) }}">Next →</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

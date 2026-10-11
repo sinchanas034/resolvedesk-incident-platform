@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ incident.ref }}{% endblock %}
+{% block content %}
+<div class="ticket-head">
+  <div>
+    <span class="ref">{{ incident.ref }}</span>
+    <h1>{{ incident.title }}</h1>
+  </div>
+  <div class="badges">
+    <span class="badge status-{{ incident.status|lower|replace(' ', '-') }}">{{ incident.status }}</span>
+    <span class="badge prio-{{ incident.priority|lower }}">{{ incident.priority }}</span>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Details</h2>
+    <p class="desc">{{ incident.description }}</p>
+    <dl class="meta">
+      <dt>Category</dt><dd>{{ incident.category }}</dd>
+      <dt>Location</dt><dd>{{ incident.location or '-' }}</dd>
+      <dt>Reported by</dt><dd>{{ incident.reporter_name }}</dd>
+      <dt>Assigned to</dt><dd>{{ incident.assignee or 'Not assigned yet' }}</dd>
+      <dt>Created</dt><dd>{{ incident.created_at|dt }}</dd>
+      <dt>Resolved</dt><dd>{{ incident.resolved_at|dt }}</dd>
+    </dl>
+
+    {% if admin %}
+    <form class="form admin-box" method="post" action="{{ url_for('main.admin_update', incident_id=incident.id) }}">
+      <h3>Update request</h3>
+      <div class="row">
+        <label>Status
+          <select name="status">{% for s in statuses %}<option {% if s == incident.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+        </label>
+        <label>Priority
+          <select name="priority">{% for p in priorities %}<option {% if p == incident.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+        </label>
+      </div>
+      <label>Assignee
+        <input name="assignee" maxlength="100" value="{{ incident.assignee or '' }}" placeholder="Team member or team">
+      </label>
+      <label>Note to reporter <span class="muted">(optional)</span>
+        <textarea name="message" rows="3"></textarea>
+      </label>
+      <button class="btn" type="submit">Save changes</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Activity</h2>
+    <ul class="timeline">
+      {% for u in incident.updates %}
+      <li>
+        <div class="who">{{ u.author }} <span class="muted">· {{ u.created_at|dt }}</span></div>
+        <div>{{ u.message }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    <form class="form" method="post" action="{{ url_for('main.comment', incident_id=incident.id) }}">
+      <label>Add a comment
+        <textarea name="message" rows="3" required></textarea>
+      </label>
+      <button class="btn btn-secondary" type="submit">Post comment</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

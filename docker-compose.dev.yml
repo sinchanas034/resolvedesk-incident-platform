@@ -1,0 +1,29 @@
+# Local development: app + PostgreSQL (mirrors the production setup)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: incidents
+      POSTGRES_PASSWORD: incidents
+      POSTGRES_DB: incidents
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U incidents"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://incidents:incidents@db:5432/incidents
+      SECRET_KEY: local-dev-secret
+      ADMIN_PASSWORD: admin123
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

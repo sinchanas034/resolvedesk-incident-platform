@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Report an issue{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Report an issue. Track it to resolution.</h1>
+  <p>One place for IT, facilities and service requests — no more lost WhatsApp messages or spreadsheets.</p>
+  <ol class="flow"><li>Report</li><li>Assign</li><li>Resolve</li></ol>
+</section>
+
+<form class="card form" method="post" action="{{ url_for('main.report') }}">
+  <h2>New request</h2>
+  <label>Title
+    <input name="title" maxlength="150" required value="{{ form.title or '' }}" placeholder="e.g. Wi-Fi down in Lab 3">
+  </label>
+  <label>Description
+    <textarea name="description" rows="5" required placeholder="What happened, since when, who is affected?">{{ form.description or '' }}</textarea>
+  </label>
+  <div class="row">
+    <label>Category
+      <select name="category" required>
+        <option value="">Choose…</option>
+        {% for c in categories %}<option {% if form.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Priority
+      <select name="priority" required>
+        {% for p in all_priorities %}<option {% if (form.priority or 'Medium') == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <label>Location <span class="muted">(optional)</span>
+    <input name="location" maxlength="150" value="{{ form.location or '' }}" placeholder="Building, floor, room">
+  </label>
+  <div class="row">
+    <label>Your name
+      <input name="reporter_name" maxlength="100" required value="{{ form.reporter_name or '' }}">
+    </label>
+    <label>Your email
+      <input name="reporter_email" type="email" maxlength="150" required value="{{ form.reporter_email or '' }}">
+    </label>
+  </div>
+  <button class="btn" type="submit">Submit request</button>
+</form>
+{% endblock %}
