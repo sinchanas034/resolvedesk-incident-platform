@@ -1,5 +1,7 @@
 # ResolveDesk — Incident & Service Request Platform
 
+🌐 **Live demo:** http://resolvedesk-sinchana.us-east-1.elasticbeanstalk.com
+
 Built for the **Build on Elastic Beanstalk** hackathon by TrainWithShubham (theme: *How DevOps Evolves India*).
 
 ## The problem
