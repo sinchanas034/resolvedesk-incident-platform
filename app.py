@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from urllib.parse import quote_plus
 
@@ -24,6 +24,8 @@ CATEGORIES = ["IT / Network", "Hardware", "Software", "Electrical",
               "Plumbing", "Facilities", "Other"]
 ACTIVE_STATUSES = ["Open", "In Progress"]
 DONE_STATUSES = ["Resolved", "Closed"]
+# SLA: hours allowed to resolve a request, by priority
+SLA_HOURS = {"Critical": 4, "High": 24, "Medium": 72, "Low": 168}
 
 
 def utcnow():
@@ -54,6 +56,14 @@ class Incident(db.Model):
     @property
     def ref(self):
         return f"INC-{self.id:05d}"
+
+    @property
+    def due_at(self):
+        return self.created_at + timedelta(hours=SLA_HOURS.get(self.priority, 72))
+
+    @property
+    def is_overdue(self):
+        return self.status in ACTIVE_STATUSES and utcnow() > self.due_at
 
     def to_dict(self):
         return {
@@ -253,6 +263,12 @@ def dashboard_stats():
         db.select(Incident.created_at, Incident.resolved_at)
         .where(Incident.resolved_at.isnot(None))
         .order_by(Incident.resolved_at.desc()).limit(500)).all()
+    active = db.session.execute(
+        db.select(Incident.created_at, Incident.priority)
+        .where(Incident.status.in_(ACTIVE_STATUSES))).all()
+    now = utcnow()
+    overdue = sum(1 for c, p in active
+                  if now > c + timedelta(hours=SLA_HOURS.get(p, 72)))
     avg_hours = None
     if resolved:
         avg_hours = round(sum((r - c).total_seconds() for c, r in resolved)
@@ -262,6 +278,7 @@ def dashboard_stats():
         "by_status": {s: by_status.get(s, 0) for s in STATUSES},
         "open_by_priority": {p: open_by_priority.get(p, 0) for p in PRIORITIES},
         "avg_resolution_hours": avg_hours,
+        "overdue": overdue,
     }
 
 
