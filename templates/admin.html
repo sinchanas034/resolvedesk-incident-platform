@@ -16,6 +16,13 @@
   {% for p, n in stats.open_by_priority.items()|reverse %}
     <span class="badge prio-{{ p|lower }}">{{ p }}: {{ n }}</span>
   {% endfor %}
+  <strong style="margin-left:12px">SLA:</strong>
+  {% if stats.overdue %}
+    <span class="badge prio-critical">⚠️ Overdue: {{ stats.overdue }}</span>
+  {% else %}
+    <span class="badge status-resolved">✓ All within SLA</span>
+  {% endif %}
+  <span class="muted" style="font-size:.85rem">(Critical 4h · High 24h · Medium 72h · Low 7 days)</span>
 </div>
 
 <form class="filters" method="get">
@@ -42,7 +49,8 @@
         <td>{{ i.title }}</td>
         <td>{{ i.category }}</td>
         <td><span class="badge prio-{{ i.priority|lower }}">{{ i.priority }}</span></td>
-        <td><span class="badge status-{{ i.status|lower|replace(' ', '-') }}">{{ i.status }}</span></td>
+        <td><span class="badge status-{{ i.status|lower|replace(' ', '-') }}">{{ i.status }}</span>
+          {% if i.is_overdue %}<span class="badge prio-critical">⚠️ Overdue</span>{% endif %}</td>
         <td>{{ i.assignee or '-' }}</td>
         <td class="muted">{{ i.created_at|dt }}</td>
       </tr>
