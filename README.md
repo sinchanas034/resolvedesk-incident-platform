@@ -2,6 +2,8 @@
 
 🌐 **Live demo:** http://resolvedesk-sinchana.us-east-1.elasticbeanstalk.com
 
+🗄️ **Database:** Amazon RDS PostgreSQL – tickets are stored permanently
+
 Built for the **Build on Elastic Beanstalk** hackathon by TrainWithShubham (theme: *How DevOps Evolves India*).
 
 ## The problem
