@@ -1,105 +1,117 @@
 # ResolveDesk — Incident & Service Request Platform
 
 🌐 **Live demo:** http://resolvedesk-sinchana.us-east-1.elasticbeanstalk.com
-
 🗄️ **Database:** Amazon RDS PostgreSQL – tickets are stored permanently
+⚙️ **CI/CD:** every push to `main` is tested and deployed automatically by GitHub Actions
 
 Built for the **Build on Elastic Beanstalk** hackathon by TrainWithShubham (theme: *How DevOps Evolves India*).
 
+---
+
 ## The problem
-Colleges, hospitals, housing societies and small businesses report technical and facility issues over WhatsApp, phone calls and spreadsheets. Requests get lost, duplicated, nobody owns them, and there is no way to measure how fast they get fixed.
+Colleges, hospitals, housing societies and small businesses still report technical and facility issues over WhatsApp, phone calls and spreadsheets. Requests get lost or duplicated, nobody clearly owns them, and there is no way to measure how fast they get fixed.
 
 ## The solution
-A central web platform where:
-- **Anyone** reports an issue (title, description, category, priority, location) and gets a ticket number like `INC-00012`.
-- **Reporters** track their ticket with ticket number + email, and comment on it.
-- **The support team** logs in to a dashboard to filter, prioritise, assign and resolve requests. Every change is recorded in an activity timeline.
-- **Metrics**: open / in-progress / resolved counts, active requests by priority, and average time to resolve.
+ResolveDesk is one central place to **report → track → assign → resolve** every issue.
+
+| Who | What they can do |
+|---|---|
+| **Anyone** | Report an issue (title, description, category, priority, location) and get a ticket number like `INC-00012` |
+| **Reporter** | Track the ticket with ticket number + email, see every update, add comments |
+| **Support team** | Log in to a dashboard, filter and search, change status and priority, assign an owner, reply to the reporter |
+| **Managers** | See live metrics: open / in progress / resolved, active tickets by priority, **SLA overdue count**, average time to resolve |
+
+### SLA tracking
+Each priority has a target resolution time. Active tickets that pass it are flagged **⚠️ Overdue** on the dashboard.
+
+| Priority | Target |
+|---|---|
+| Critical | 4 hours |
+| High | 24 hours |
+| Medium | 3 days |
+| Low | 7 days |
+
+---
+
+## Architecture
+
+```
+                 ┌──────────────────────────────┐
+  Developer ───▶ │ GitHub (code)                │
+   git push      │  └─ GitHub Actions (CI/CD)   │
+                 │      1. run automated tests  │
+                 │      2. build Docker image   │
+                 │      3. deploy new version   │
+                 └──────────────┬───────────────┘
+                                ▼
+  Users ──HTTP──▶ ┌──────────────────────────────────────────┐
+                  │ AWS Elastic Beanstalk (us-east-1)        │
+                  │  EC2 t3.micro in an Auto Scaling group   │
+                  │  └─ Docker: Gunicorn + Flask app         │
+                  │  Enhanced health checks on /health       │
+                  └───────┬───────────────────────┬──────────┘
+                          ▼                       ▼
+            ┌──────────────────────┐   ┌──────────────────────────┐
+            │ Amazon RDS           │   │ Amazon CloudWatch Logs   │
+            │ PostgreSQL           │   │ + SNS email alerts       │
+            │ (private, port 5432  │   │   (environment events)   │
+            │  open only to the    │   └──────────────────────────┘
+            │  app's security grp) │
+            └──────────────────────┘
+```
 
 ## Tech stack
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.12, Flask, SQLAlchemy |
 | Frontend | Server-rendered HTML (Jinja) + CSS, mobile-friendly |
-| Database | PostgreSQL (Amazon RDS) in production, SQLite for quick local runs |
-| App server | Gunicorn |
-| Container | Docker |
-| Cloud | AWS Elastic Beanstalk (Docker platform) |
+| Database | Amazon RDS PostgreSQL (production), SQLite (local development) |
+| App server | Gunicorn (3 workers) |
+| Container | Docker (non-root user, built-in health check) |
+| Cloud | AWS Elastic Beanstalk – Docker on Amazon Linux 2023 |
 | CI/CD | GitHub Actions: test → build image → deploy |
-| Observability | `/health` endpoint, EB enhanced health, CloudWatch Logs, request timing logs |
+| Monitoring | `/health` endpoint (checks the database), EB enhanced health, CloudWatch Logs, email notifications via SNS |
+| Security | IAM roles with least privilege, secrets in GitHub Secrets and EB environment properties, RDS not publicly accessible |
 | AI assistant | Claude (code generation and review) |
 
-## Architecture
-```
-Users ──▶ Elastic Beanstalk (Load Balancer + Auto Scaling group)
-              │
-              ▼
-        EC2 instances running the Docker container (Gunicorn + Flask)
-              │                        │
-              ▼                        ▼
-        Amazon RDS PostgreSQL     CloudWatch Logs / EB Health
-```
-The app is **stateless** (sessions live in signed cookies, data lives in RDS), so EB can add or remove instances freely as traffic changes.
+---
+
+## DevOps practices used
+- **Infrastructure on a managed platform:** Elastic Beanstalk provisions EC2, the Auto Scaling group, security groups and monitoring.
+- **Containerisation:** the same Docker image runs locally and on AWS.
+- **CI/CD:** GitHub Actions runs 9 automated tests on every push and blocks the deploy if any fail. Every deploy creates a versioned application in Elastic Beanstalk, so rolling back is one click.
+- **Self-healing:** if the EC2 instance stops or fails health checks, the Auto Scaling group replaces it automatically (tested during development).
+- **Stateless app + managed database:** all data lives in RDS, so servers can be replaced, redeployed or scaled out without losing tickets.
+- **Observability:** health endpoint, request logs with response times, CloudWatch log streaming, and email alerts on environment events.
+- **Secure configuration:** no secrets in the code. AWS keys are stored in GitHub Secrets; app passwords and the database URL are Elastic Beanstalk environment properties.
+
+## How it scales
+- The app is **stateless** (sessions are signed cookies, data is in RDS), so Elastic Beanstalk can run many instances behind a load balancer by switching the environment type to *Load balanced* with Auto Scaling rules (e.g. add an instance above 70% CPU).
+- Database queries use indexed columns (status, priority, created date) and the dashboard is paginated.
+- RDS can be scaled vertically or given read replicas as usage grows.
+- Next steps: multi-organisation support, HTTPS with a custom domain, email/Slack notifications to reporters, Redis caching for dashboard stats.
+
+---
 
 ## Run locally
-
-**Option A — Python only (SQLite):**
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # run tests
+python -m pytest -q          # run the 9 tests
 python wsgi.py               # open http://localhost:8000
 ```
-
-**Option B — Docker + PostgreSQL (same as production):**
+Or with Docker + PostgreSQL (same as production):
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
-Support login: username `admin`, password `admin123` (local only — change it in production).
 
-## Deploy to AWS Elastic Beanstalk
-
-### 1. Create the environment (AWS Console)
-1. Open **Elastic Beanstalk → Create application**.
-2. Application name: `incident-platform`. Environment name: `incident-platform-prod`.
-3. Platform: **Docker**, branch **Docker running on 64bit Amazon Linux 2023**.
-4. Application code: **Upload your code** → upload a zip of this folder (see below).
-5. Presets: **Single instance** (cheapest, good for the demo) or **High availability** (load balancer + auto scaling — shows scaling).
-6. Service role / EC2 instance profile: let the console create the defaults (`aws-elasticbeanstalk-service-role`, `aws-elasticbeanstalk-ec2-role`).
-7. **Database (optional but recommended)**: in *Set up networking, database and tags*, enable a database → Engine **postgres**, class `db.t3.micro`, set a username and password. EB passes `RDS_HOSTNAME`, `RDS_USERNAME`, etc. to the app automatically and the app uses them.
-   - Without a database, the app falls back to SQLite inside the container, which works for a demo but **data is lost on every redeploy**.
-8. **Environment properties** (Configure updates, monitoring and logging → Environment properties):
-   - `SECRET_KEY` = a long random string
-   - `ADMIN_USERNAME` = `admin`
-   - `ADMIN_PASSWORD` = a strong password
-9. Create. After ~5–10 minutes, open the environment URL and check `/health` returns `{"status": "ok"}`.
-
-Make the zip from inside this folder:
-```bash
-zip -r deploy.zip . -x '.git/*' 'tests/*' '__pycache__/*' 'instance/*'
-```
-
-### 2. Turn on auto scaling (High availability environments)
-Configuration → **Capacity**: Min instances `1`, Max `3`, scaling trigger **CPUUtilization**, upper threshold `70`, lower `30`.
-
-### 3. Set up CI/CD (GitHub Actions)
-1. Push this folder to a GitHub repository (`main` branch).
-2. In AWS IAM, create a user for deployments with the `AdministratorAccess-AWSElasticBeanstalk` policy and create an access key.
-3. In GitHub → repo **Settings → Secrets and variables → Actions**:
-   - Secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
-   - Variables: `EB_APP_NAME` = `incident-platform`, `EB_ENV_NAME` = `incident-platform-prod`, `AWS_REGION` = e.g. `ap-south-1`
-4. Every push to `main` now runs tests, builds the Docker image, and deploys a new version to Elastic Beanstalk. Pull requests run tests only.
-
-### 4. Monitoring
-- **Health**: EB uses `/health` (checks the database connection too) — see `.ebextensions/01-app.config`.
-- **Logs**: streamed to CloudWatch Logs (`/aws/elasticbeanstalk/<env>/...`). Each request is logged with method, path, status and duration; ticket creation and updates are logged as events.
-
-## How it scales
-- **Horizontal scaling**: stateless containers behind the EB load balancer; Auto Scaling adds instances on high CPU.
-- **Managed database**: RDS PostgreSQL with indexed columns (status, priority, created_at) and paginated queries.
-- **Safe deploys**: CI runs tests before any deploy; EB keeps every version so you can roll back in one click.
-- **Next steps**: multi-organisation support, email/Slack notifications, SLA timers per priority, Redis caching for dashboard stats.
+## Configuration (environment variables)
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (RDS). SQLite is used if not set. |
+| `SECRET_KEY` | Signs session cookies |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Support team login |
 
 ## API (support team, after login)
-- `GET /api/incidents?limit=50` — latest incidents as JSON
-- `GET /api/stats` — dashboard metrics as JSON
-- `GET /health` — public health check
+- `GET /api/incidents?limit=50` – latest incidents as JSON
+- `GET /api/stats` – dashboard metrics as JSON (including overdue count)
+- `GET /health` – public health check used by Elastic Beanstalk
